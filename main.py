@@ -13,13 +13,25 @@ db = mysql.connector.connect(
     host="localhost",
     user="root",
     password="kanishk",
-    database="testdb"
+    database="dbn2"
 )
 cursor = db.cursor()
 
 # Groq: Convert NL to SQL
 def get_sql_from_nl(nl_query):
-    prompt = f"""You are a SQL expert. Convert the following natural language request into a valid MySQL SQL query:\n\n"{nl_query}"\n\nOnly output the SQL query, nothing else."""
+    # Get table definitions
+    cursor.execute("SHOW TABLES")
+    tables = [row[0] for row in cursor.fetchall()]
+    
+    schema_description = ""
+    for table in tables:
+        cursor.execute(f"SHOW COLUMNS FROM {table}")
+        columns = cursor.fetchall()
+        col_str = ", ".join([f"{col[0]} ({col[1]})" for col in columns])
+        schema_description += f"Table `{table}`: {col_str}\n"
+    
+    # Add schema to the prompt
+    prompt = f"""You are a MySQL SQL expert. Use the following database schema to answer the user's request.\n\nSchema:\n{schema_description}\n\nUser Request:\n\"{nl_query}\"\n\nOnly output the SQL query, nothing else."""
     
     response = requests.post(
         "https://api.groq.com/openai/v1/chat/completions",
@@ -36,6 +48,7 @@ def get_sql_from_nl(nl_query):
     
     sql = response.json()["choices"][0]["message"]["content"]
     return sql.strip("```sql\n").strip("```").strip()
+
 
 # UI Layout
 st.set_page_config(page_title="NL to SQL", layout="centered")
